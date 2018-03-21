@@ -1,0 +1,23 @@
+[[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "1.13.17"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/fullsailor/pkcs7"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/hashicorp/go-cleanhttp"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/hashicorp/go-uuid"
+
+[[constraint]]
+  name = "github.com/hashicorp/vault"
+  version = "0.9.6"
+
+[[constraint]]
+  name = "github.com/patrickmn/go-cache"
+  version = "2.1.0"
