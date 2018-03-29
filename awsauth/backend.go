@@ -129,6 +129,7 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			},
 		},
 		Paths: []*framework.Path{
+			pathConfigVault(b),
 			pathLogin(b),
 			pathListRole(b),
 			pathListRoles(b),
