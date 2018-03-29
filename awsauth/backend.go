@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/helper/consts"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
@@ -76,6 +77,8 @@ type backend struct {
 	defaultAWSAccountID string
 
 	resolveArnToUniqueIDFunc func(context.Context, logical.Storage, string) (string, error)
+
+	vaultClient *api.Client
 }
 
 func Backend(conf *logical.BackendConfig) (*backend, error) {
@@ -86,6 +89,26 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 		EC2ClientsMap:       make(map[string]map[string]*ec2.EC2),
 		IAMClientsMap:       make(map[string]map[string]*iam.IAM),
 		iamUserIdToArnCache: cache.New(7*24*time.Hour, 24*time.Hour),
+	}
+
+	config := api.DefaultConfig()
+	config.Address = "http://127.0.0.1:8201"
+
+	vaultClient, err := api.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+	vaultClient.SetToken("235ef135-0a9a-d1c4-a6bc-3e23d81ec63e")
+
+	b.vaultClient = vaultClient
+
+	_, err = b.vaultClient.Logical().Write("secret/test2",
+		map[string]interface{}{
+			"foo1": []byte("thing"),
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	b.resolveArnToUniqueIDFunc = b.resolveArnToRealUniqueId
