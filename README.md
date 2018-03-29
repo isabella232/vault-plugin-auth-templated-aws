@@ -12,6 +12,7 @@ Add `plugin_directory = "/etc/vault/plugins"` to vault config.
 
 Copy binary into plugin directory:
 
+    $ mkdir -p /etc/vault/plugins/
     $ cp tarmak-vault-auth-plugin /etc/vault/plugins/tarmak-vault-auth-plugin
 
 Calculate hash of plugin:
@@ -29,3 +30,18 @@ Enable it as an auth method:
 Check it appears in auth list:
 
     $ vault auth list
+
+Disable it with:
+
+    $ vault auth disable tarmak
+
+
+Using:
+
+Create role:
+
+    vault write auth/tarmak/role/ami-1b6c3b62 auth_type=ec2 bound_ami_id=ami-1b6c3b62 policies=prod,dev
+
+Attempt to get a token:
+
+    vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)"
