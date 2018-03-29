@@ -718,7 +718,7 @@ func (b *backend) pathLoginUpdateEc2(ctx context.Context, req *logical.Request, 
 		longestMaxTTL = roleEntry.MaxTTL
 	}
 
-	policies := roleEntry.Policies
+	//policies := roleEntry.Policies
 	rTagMaxTTL := time.Duration(0)
 	var roleTagResp *roleTagLoginResponse
 	if roleEntry.RoleTag != "" {
@@ -739,7 +739,7 @@ func (b *backend) pathLoginUpdateEc2(ctx context.Context, req *logical.Request, 
 		// If policies on role tag are set, by this point, it is verified that it is a subset of the
 		// policies on the role. So, apply only those.
 		if len(roleTagResp.Policies) != 0 {
-			policies = roleTagResp.Policies
+			//policies = roleTagResp.Policies
 		}
 
 		// If roleEntry had disallowReauthentication set to 'true', do not reset it
@@ -794,10 +794,29 @@ func (b *backend) pathLoginUpdateEc2(ctx context.Context, req *logical.Request, 
 		return nil, err
 	}
 
+	policyName := "test-policy"
+	_, err = b.vaultClient.Logical().Write("/sys/policy/"+policyName,
+		map[string]interface{}{
+			"policy": `path "secret/*" {
+capabilities = ["create"]
+}
+
+path "secret/foo" {
+capabilities = ["read"]
+}
+`,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	//return logical.ErrorResponse(fmt.Sprintf("%v", err)), nil
+
 	resp := &logical.Response{
 		Auth: &logical.Auth{
 			Period:   roleEntry.Period,
-			Policies: policies,
+			Policies: []string{policyName},
 			Metadata: map[string]string{
 				"instance_id":      identityDocParsed.InstanceID,
 				"region":           identityDocParsed.Region,
