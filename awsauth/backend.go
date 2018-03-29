@@ -98,7 +98,6 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	vaultClient.SetToken("235ef135-0a9a-d1c4-a6bc-3e23d81ec63e")
 
 	b.vaultClient = vaultClient
 

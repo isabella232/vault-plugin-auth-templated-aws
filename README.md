@@ -36,7 +36,12 @@ Disable it with:
     $ vault auth disable tarmak
 
 
-Using:
+Configuring
+-----------
+
+Set the vault token to use for writing new policies:
+
+    vault write auth/tarmak/config/vault token=235ef135-0a9a-d1c4-a6bc-3e23d81ec63e
 
 Create role:
 
