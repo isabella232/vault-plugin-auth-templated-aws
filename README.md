@@ -43,10 +43,18 @@ Set the vault token to use for writing new policies:
 
     vault write auth/tarmak/config/vault token=235ef135-0a9a-d1c4-a6bc-3e23d81ec63e
 
+Optionally set the aws credentials for talking to the ec2 api:
+
+    vault write auth/tarmak/config/client secret_key=something access_key=something_else
+
 Create role:
 
-    vault write auth/tarmak/role/ami-1b6c3b62 auth_type=ec2 bound_ami_id=ami-1b6c3b62 policies=prod,dev
+    vault write auth/tarmak/role/vault-test auth_type=ec2 bound_iam_role_arn=arn:aws:iam::228615251467:role/tarmak-vault base_path=test-cluster
+
+Create a template:
+
+    vault write auth/tarmak/template/vault-test/example template='path "secret/*" { capabilities = ["create"] } path "secret/foo" { capabilities = ["read"] }' type=policy base_path=testing-plugin
 
 Attempt to get a token:
 
-    vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)"
+    vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)" role=vault-test

@@ -24,6 +24,12 @@ func pathConfigClient(b *backend) *framework.Path {
 				Description: "AWS Secret Access Key for the account used to make AWS API requests.",
 			},
 
+			"security_token": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "AWS Security Token for the account used to make AWS API requests.",
+			},
+
 			"endpoint": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Default:     "",
@@ -117,6 +123,7 @@ func (b *backend) pathConfigClientRead(ctx context.Context, req *logical.Request
 		Data: map[string]interface{}{
 			"access_key":                 clientConfig.AccessKey,
 			"secret_key":                 clientConfig.SecretKey,
+			"security_token":             clientConfig.SecurityToken,
 			"endpoint":                   clientConfig.Endpoint,
 			"iam_endpoint":               clientConfig.IAMEndpoint,
 			"sts_endpoint":               clientConfig.STSEndpoint,
@@ -185,6 +192,16 @@ func (b *backend) pathConfigClientCreateUpdate(ctx context.Context, req *logical
 		}
 	} else if req.Operation == logical.CreateOperation {
 		configEntry.SecretKey = data.Get("secret_key").(string)
+	}
+
+	securityTokenStr, ok := data.GetOk("security_token")
+	if ok {
+		if configEntry.SecurityToken != securityTokenStr.(string) {
+			changedCreds = true
+			configEntry.SecurityToken = securityTokenStr.(string)
+		}
+	} else if req.Operation == logical.CreateOperation {
+		configEntry.SecurityToken = data.Get("security_token").(string)
 	}
 
 	endpointStr, ok := data.GetOk("endpoint")
@@ -270,6 +287,7 @@ func (b *backend) pathConfigClientCreateUpdate(ctx context.Context, req *logical
 type clientConfig struct {
 	AccessKey              string `json:"access_key"`
 	SecretKey              string `json:"secret_key"`
+	SecurityToken          string `json:"security_token"`
 	Endpoint               string `json:"endpoint"`
 	IAMEndpoint            string `json:"iam_endpoint"`
 	STSEndpoint            string `json:"sts_endpoint"`

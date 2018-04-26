@@ -25,6 +25,10 @@ func pathRole(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "Name of the role.",
 			},
+			"base_path": {
+				Type:        framework.TypeString,
+				Description: "Base path to store this role's policy and pki-role.",
+			},
 			"auth_type": {
 				Type: framework.TypeString,
 				Description: `The auth_type permitted to authenticate to this role. Must be one of
@@ -509,6 +513,13 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 		}
 	}
 
+	if basePath, ok := data.GetOk("base_path"); ok {
+		roleEntry.BasePath = basePath.(string)
+	}
+	if roleEntry.BasePath == "" {
+		return logical.ErrorResponse("missing base_path"), nil
+	}
+
 	// Fetch and set the bound parameters. There can't be default values
 	// for these.
 	if boundAmiIDRaw, ok := data.GetOk("bound_ami_id"); ok {
@@ -807,6 +818,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 // Struct to hold the information associated with a Vault role
 type awsRoleEntry struct {
 	AuthType                    string        `json:"auth_type" `
+	BasePath                    string        `json:"base_path"`
 	BoundAmiIDs                 []string      `json:"bound_ami_id_list"`
 	BoundAccountIDs             []string      `json:"bound_account_id_list"`
 	BoundEc2InstanceIDs         []string      `json:"bound_ec2_instance_id_list"`
@@ -843,6 +855,7 @@ type awsRoleEntry struct {
 
 func (r *awsRoleEntry) ToResponseData() map[string]interface{} {
 	responseData := map[string]interface{}{
+		"base_path":                      r.BasePath,
 		"auth_type":                      r.AuthType,
 		"bound_ami_id":                   r.BoundAmiIDs,
 		"bound_account_id":               r.BoundAccountIDs,

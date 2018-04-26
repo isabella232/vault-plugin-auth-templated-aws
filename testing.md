@@ -1,3 +1,8 @@
+Install vault:
+
+    wget https://releases.hashicorp.com/vault/0.10.0/vault_0.10.0_linux_amd64.zip
+    tar xfv v0.10.0.tar.gz
+
 Vault config:
 
 ```

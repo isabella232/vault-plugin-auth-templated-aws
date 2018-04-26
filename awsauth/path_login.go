@@ -1,6 +1,7 @@
 package awsauth
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"crypto/x509"
@@ -12,9 +13,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
+	texttemplate "text/template"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -237,7 +240,7 @@ func validateMetadata(clientNonce, pendingTime string, storedIdentity *whitelist
 	// option should be used with caution.
 	if subtle.ConstantTimeCompare([]byte(clientNonce), []byte(storedIdentity.ClientNonce)) != 1 {
 		if !roleEntry.AllowInstanceMigration {
-			return fmt.Errorf("client nonce mismatch")
+			return fmt.Errorf("client nonce mismatch (correct nonce %s)", string(storedIdentity.ClientNonce))
 		}
 		if roleEntry.AllowInstanceMigration && !givenPendingTime.After(storedPendingTime) {
 			return fmt.Errorf("client nonce mismatch and instance meta-data incorrect")
@@ -794,19 +797,107 @@ func (b *backend) pathLoginUpdateEc2(ctx context.Context, req *logical.Request, 
 		return nil, err
 	}
 
-	policyName := "test-policy"
-	_, err = b.vaultClient.Logical().Write("/sys/policy/"+policyName,
-		map[string]interface{}{
-			"policy": `path "secret/*" {
-capabilities = ["create"]
-}
+	renderTemplates := func(b *backend, instance *ec2.Instance, roleName string, role *awsRoleEntry) ([]string, error) {
+		type Values struct {
+			InstanceHash string
+			FQDN         string
+			InternalIPv4 string
+			BasePath     string
+			OutputPath   string
+		}
 
-path "secret/foo" {
-capabilities = ["read"]
-}
-`,
-		},
-	)
+		values := Values{
+			BasePath: role.BasePath,
+		}
+
+		if instance == nil {
+			return nil, fmt.Errorf("instance cannot be nil")
+		}
+
+		if instance.InstanceId != nil {
+			values.InstanceHash = *instance.InstanceId
+		}
+
+		if instance.PrivateDnsName != nil {
+			values.FQDN = *instance.PrivateDnsName
+		}
+
+		if instance.PrivateIpAddress != nil {
+			values.InternalIPv4 = *instance.PrivateIpAddress
+		}
+
+		policies := []string{}
+
+		templates, err := req.Storage.List(ctx, fmt.Sprintf("template/%s/", roleName))
+		if err != nil {
+			return nil, err
+		}
+
+		b.Logger().Info(fmt.Sprintf("templates: %v", templates))
+		for _, t := range templates {
+			policyName := t
+			template, err := b.lockedTemplateEntry(ctx, req.Storage, roleName, t)
+			if err != nil {
+				return nil, err
+			}
+
+			tmpl, err := texttemplate.New("tmpl").Parse(template.Template)
+			if err != nil {
+				return nil, err
+			}
+
+			var buf bytes.Buffer
+			err = tmpl.Execute(&buf, values)
+			if err != nil {
+				return nil, err
+			}
+
+			switch template.Type {
+			case "policy":
+				values.OutputPath = ""
+
+				b.Logger().Info(fmt.Sprintf("creating policy: %s", buf.String()))
+
+				fullPolicyName := fmt.Sprintf("/sys/policy/%s-%s", policyName, values.InstanceHash)
+				policies = append(policies, fullPolicyName)
+				_, err = b.vaultClient.Logical().Write(fullPolicyName,
+					map[string]interface{}{
+						"policy": buf.String(),
+					},
+				)
+				if err != nil {
+					return nil, err
+				}
+			case "generic":
+				values.OutputPath = template.Path
+
+				m := map[string]interface{}{}
+				err := json.Unmarshal(buf.Bytes(), &m)
+				if err != nil {
+					return nil, err
+				}
+				b.Logger().Info(fmt.Sprintf("creating secret: %v", m))
+
+				fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
+				_, err = b.vaultClient.Logical().Write(fullSecretName,
+					map[string]interface{}{
+						"data": m,
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+
+			default:
+				return nil, fmt.Errorf("not a supported template type: %s", template.Type)
+			}
+
+		}
+		return policies, nil
+	}
+
+	policies, err := renderTemplates(b, instance, roleName, roleEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -816,7 +907,7 @@ capabilities = ["read"]
 	resp := &logical.Response{
 		Auth: &logical.Auth{
 			Period:   roleEntry.Period,
-			Policies: []string{policyName},
+			Policies: policies,
 			Metadata: map[string]string{
 				"instance_id":      identityDocParsed.InstanceID,
 				"region":           identityDocParsed.Region,

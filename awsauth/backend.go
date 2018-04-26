@@ -36,6 +36,9 @@ type backend struct {
 	// Lock to make changes to role entries
 	roleMutex sync.RWMutex
 
+	// Lock to make changes to templates
+	templateMutex sync.RWMutex
+
 	// Lock to make changes to the blacklist entries
 	blacklistMutex sync.RWMutex
 
@@ -92,7 +95,7 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 	}
 
 	config := api.DefaultConfig()
-	config.Address = "http://127.0.0.1:8201"
+	config.Address = "http://127.0.0.1:8200" // TODO: make this configurable
 
 	vaultClient, err := api.NewClient(config)
 	if err != nil {
@@ -100,15 +103,6 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 	}
 
 	b.vaultClient = vaultClient
-
-	_, err = b.vaultClient.Logical().Write("secret/test2",
-		map[string]interface{}{
-			"foo1": []byte("thing"),
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
 
 	b.resolveArnToUniqueIDFunc = b.resolveArnToRealUniqueId
 
@@ -128,6 +122,8 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			},
 		},
 		Paths: []*framework.Path{
+			pathTemplate(b),
+			pathListTemplates(b),
 			pathConfigVault(b),
 			pathLogin(b),
 			pathListRole(b),

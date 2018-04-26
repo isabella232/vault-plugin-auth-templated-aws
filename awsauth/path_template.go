@@ -2,6 +2,7 @@ package awsauth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
@@ -11,7 +12,7 @@ func pathTemplate(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "template/" + framework.GenericNameRegex("role") + "/" + framework.GenericNameRegex("templateName"),
 		Fields: map[string]*framework.FieldSchema{
-			"template": &framework.FieldSchema{
+			"role": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Default:     "",
 				Description: "",
@@ -20,6 +21,21 @@ func pathTemplate(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Default:     "",
 				Description: "",
+			},
+			"type": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "Type of this template, one of policy|generic",
+			},
+			"path": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "Relative path to render template to",
+			},
+			"template": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "The actual template data",
 			},
 		},
 
@@ -37,25 +53,68 @@ func pathTemplate(b *backend) *framework.Path {
 	}
 }
 
+func pathListTemplates(b *backend) *framework.Path {
+	return &framework.Path{
+		Pattern: "template/" + framework.GenericNameRegex("role") + "/?",
+
+		Fields: map[string]*framework.FieldSchema{
+			"role": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "",
+			},
+		},
+
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ListOperation: b.pathTemplateList,
+		},
+
+		HelpSynopsis:    pathTemplateHelpSyn,
+		HelpDescription: pathTemplateHelpDesc,
+	}
+}
+
 // Establishes dichotomy of request operation between CreateOperation and UpdateOperation.
 // Returning 'true' forces an UpdateOperation, CreateOperation otherwise.
 func (b *backend) pathTemplateExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {
-	entry, err := b.lockedTemplateEntry(ctx, req.Storage)
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return false, fmt.Errorf("missing role")
+	}
+
+	templateName := data.Get("templateName").(string)
+	if roleName == "" {
+		return false, fmt.Errorf("missing templateName")
+	}
+
+	entry, err := b.lockedTemplateEntry(ctx, req.Storage, roleName, templateName)
 	if err != nil {
 		return false, err
 	}
 	return entry != nil, nil
 }
 
-func (b *backend) lockedTemplateEntry(ctx context.Context, s logical.Storage) (*vaultConfig, error) {
-	b.configMutex.RLock()
-	defer b.configMutex.RUnlock()
+func (b *backend) lockedTemplateEntry(ctx context.Context, s logical.Storage, roleName string, templateName string) (*template, error) {
+	b.templateMutex.RLock()
+	defer b.templateMutex.RUnlock()
 
-	return b.nonLockedTemplateEntry(ctx, s)
+	return b.nonLockedTemplateEntry(ctx, s, roleName, templateName)
 }
 
-func (b *backend) nonLockedTemplateEntry(ctx context.Context, s logical.Storage, roleName string, templateName string) (*vaultConfig, error) {
-	entry, err := s.Get(ctx, "template")
+func templatePath(roleName, templateName string) string {
+	return fmt.Sprintf("template/%s/%s", roleName, templateName)
+}
+
+func (b *backend) nonLockedTemplateEntry(ctx context.Context, s logical.Storage, roleName string, templateName string) (*template, error) {
+	if roleName == "" {
+		return nil, fmt.Errorf("missing role name")
+	}
+
+	if templateName == "" {
+		return nil, fmt.Errorf("missing template name")
+	}
+
+	entry, err := s.Get(ctx, templatePath(roleName, templateName))
 	if err != nil {
 		return nil, err
 	}
@@ -63,61 +122,119 @@ func (b *backend) nonLockedTemplateEntry(ctx context.Context, s logical.Storage,
 		return nil, nil
 	}
 
-	var result vaultConfig
+	var result template
 	if err := entry.DecodeJSON(&result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
+func (b *backend) pathTemplateList(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return nil, fmt.Errorf("missing role")
+	}
+
+	templates, err := req.Storage.List(ctx, "template/"+roleName+"/")
+	if err != nil {
+		return nil, err
+	}
+	return logical.ListResponse(templates), nil
+}
+
 func (b *backend) pathTemplateRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	vaultConfig, err := b.lockedTemplateEntry(ctx, req.Storage)
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing role"), nil
+	}
+
+	templateName := data.Get("templateName").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing templateName"), nil
+	}
+
+	template, err := b.lockedTemplateEntry(ctx, req.Storage, roleName, templateName)
 	if err != nil {
 		return nil, err
 	}
 
-	if vaultConfig == nil {
+	if template == nil {
 		return nil, nil
 	}
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"token": vaultConfig.Token,
+			"path":          template.Path,
+			"template_name": template.TemplateName,
+			"role":          template.Role,
+			"type":          template.Type,
+			"template":      template.Template,
 		},
 	}, nil
 }
 
 func (b *backend) pathTemplateDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	b.configMutex.Lock()
-	defer b.configMutex.Unlock()
-
-	if err := req.Storage.Delete(ctx, "template"); err != nil {
-		return nil, err
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing role"), nil
 	}
 
-	b.vaultClient.SetToken("")
+	templateName := data.Get("templateName").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing templateName"), nil
+	}
+
+	b.templateMutex.Lock()
+	defer b.templateMutex.Unlock()
+
+	if err := req.Storage.Delete(ctx, templatePath(roleName, templateName)); err != nil {
+		return nil, err
+	}
 
 	return nil, nil
 }
 
 func (b *backend) pathTemplateCreateUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	b.configMutex.Lock()
-	defer b.configMutex.Unlock()
+	b.templateMutex.Lock()
+	defer b.templateMutex.Unlock()
 
-	configEntry, err := b.nonLockedTemplateEntry(ctx, req.Storage)
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing role"), nil
+	}
+
+	templateName := data.Get("templateName").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("missing templateName"), nil
+	}
+
+	t, err := b.nonLockedTemplateEntry(ctx, req.Storage, roleName, templateName)
 	if err != nil {
 		return nil, err
 	}
-	if configEntry == nil {
-		configEntry = &vaultConfig{}
+	if t == nil {
+		t = &template{}
 	}
 
-	token, ok := data.GetOk("token")
-	if ok {
-		b.vaultClient.SetToken(token.(string))
+	t.Role = roleName
+	t.TemplateName = templateName
+
+	template := data.Get("template").(string)
+	if template != "" {
+		t.Template = template
 	}
 
-	entry, err := logical.StorageEntryJSON("config/vault", configEntry)
+	templateType := data.Get("type").(string)
+	if templateType != "" {
+		t.Type = templateType
+	}
+
+	path := data.Get("path").(string)
+	if path != "" {
+		t.Path = path
+	}
+
+	entry, err := logical.StorageEntryJSON(templatePath(roleName, templateName), t)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +247,11 @@ func (b *backend) pathTemplateCreateUpdate(ctx context.Context, req *logical.Req
 }
 
 type template struct {
-	Token string `json:"token"`
+	Role         string `json:"role"`
+	TemplateName string `json:"templateName"`
+	Type         string `json:"type"`
+	Path         string `json:"path"`
+	Template     string `json:"template"`
 }
 
 const pathTemplateHelpSyn = `
