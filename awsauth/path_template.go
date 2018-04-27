@@ -226,6 +226,12 @@ func (b *backend) pathTemplateCreateUpdate(ctx context.Context, req *logical.Req
 
 	templateType := data.Get("type").(string)
 	if templateType != "" {
+		switch templateType {
+		case "policy":
+		case "generic":
+		default:
+			return nil, fmt.Errorf("not a supported template type: %s (must be one of policy, generic)", templateType)
+		}
 		t.Type = templateType
 	}
 

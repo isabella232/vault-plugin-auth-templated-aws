@@ -53,7 +53,6 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 		return nil, err
 	}
 
-	b.Logger().Info(fmt.Sprintf("templates: %v", templates))
 	for _, templateName := range templates {
 		template, err := b.lockedTemplateEntry(ctx, req.Storage, roleName, templateName)
 		if err != nil {
