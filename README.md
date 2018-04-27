@@ -41,7 +41,7 @@ Configuring
 
 Set the vault token to use for writing new policies:
 
-    vault write auth/tarmak/config/vault token=235ef135-0a9a-d1c4-a6bc-3e23d81ec63e
+    vault write auth/tarmak/config/vault token=7459a4df-1e18-6b08-5c0a-f0106badc284
 
 Optionally set the aws credentials for talking to the ec2 api:
 
@@ -49,12 +49,21 @@ Optionally set the aws credentials for talking to the ec2 api:
 
 Create role:
 
-    vault write auth/tarmak/role/vault-test auth_type=ec2 bound_iam_role_arn=arn:aws:iam::228615251467:role/tarmak-vault base_path=test-cluster
+    vault write auth/tarmak/role/vault-test bound_iam_role_arn=arn:aws:iam::228615251467:role/tarmak-vault base_path="/"
 
-Create a template:
+Create some templates:
 
-    vault write auth/tarmak/template/vault-test/example template='path "secret/*" { capabilities = ["create"] } path "secret/foo" { capabilities = ["read"] }' type=policy base_path=testing-plugin
+    vault write auth/tarmak/template/vault-test/test-policy template='path "secret/*" { capabilities = ["create"] } path "secret/foo" { capabilities = ["read"] }' type=policy path="sys/policy"
+    vault write auth/tarmak/template/vault-test/test-pki template='{"allowed_domains": ["{{ .FQDN }}"], "allow_subdomains": true}' type=generic path="pki/roles"
 
-Attempt to get a token:
+These templates are processed using go's templating langauge, with the following variables supported:
+
+- `{{ .InstanceHash }}`: the ID of the requesting instance (e.g `i-0f7ebb331c89ed78c`)
+- `{{ .FQDN }}`: the private DNS name of the requesting instance (e.g. `ip-172-31-19-213.eu-west-1.compute.internal`)
+- `{{ .InternalIPv4 }}`: the private IP address of the requesting instance
+- `{{ .BasePath }}`: the `base_path` set on the role used
+- `{{ .OutputPath }}`: the `path` set on the template
+
+Get a token:
 
     vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)" role=vault-test
