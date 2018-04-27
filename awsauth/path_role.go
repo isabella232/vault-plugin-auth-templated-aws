@@ -30,7 +30,8 @@ func pathRole(b *backend) *framework.Path {
 				Description: "Base path to store this role's policy and pki-role.",
 			},
 			"auth_type": {
-				Type: framework.TypeString,
+				Type:    framework.TypeString,
+				Default: "ec2",
 				Description: `The auth_type permitted to authenticate to this role. Must be one of
 iam or ec2 and cannot be changed after role creation.`,
 			},
@@ -599,8 +600,10 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 		// auth_type should have already been upgraded to have one before we get here
 		if roleEntry.AuthType == "" {
 			switch authTypeRaw.(string) {
-			case ec2AuthType, iamAuthType:
+			case ec2AuthType:
 				roleEntry.AuthType = authTypeRaw.(string)
+			case iamAuthType:
+				return logical.ErrorResponse(fmt.Sprintf("only ec2 auth_type is supported: %v", authTypeRaw.(string))), nil
 			default:
 				return logical.ErrorResponse(fmt.Sprintf("unrecognized auth_type: %v", authTypeRaw.(string))), nil
 			}
