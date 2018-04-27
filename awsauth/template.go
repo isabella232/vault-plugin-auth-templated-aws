@@ -21,6 +21,10 @@ type Values struct {
 	TemplateName string
 }
 
+func secretName(values Values) string {
+	return filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", values.TemplateName, values.InstanceHash))
+}
+
 func renderTemplates(ctx context.Context, b *backend, req *logical.Request, instance *ec2.Instance, roleName string, role *awsRoleEntry) ([]string, error) {
 	values := Values{
 		BasePath: role.BasePath,
@@ -76,7 +80,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 
 		switch template.Type {
 		case "policy":
-			fullPolicyName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", values.TemplateName, values.InstanceHash))
+			fullPolicyName := secretName(values)
 
 			b.Logger().Info(fmt.Sprintf("creating policy: '%s' %s", fullPolicyName, buf.String()))
 			policies = append(policies, fullPolicyName)
@@ -95,7 +99,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 				return nil, err
 			}
 
-			fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", values.TemplateName, values.InstanceHash))
+			fullSecretName := secretName(values)
 			b.Logger().Info(fmt.Sprintf("creating secret: '%s' %v", fullSecretName, m))
 			_, err = vaultClient.Logical().Write(fullSecretName, m)
 
