@@ -876,14 +876,10 @@ func (b *backend) pathLoginUpdateEc2(ctx context.Context, req *logical.Request, 
 				if err != nil {
 					return nil, err
 				}
-				b.Logger().Info(fmt.Sprintf("creating secret: %v", m))
 
 				fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
-				_, err = b.vaultClient.Logical().Write(fullSecretName,
-					map[string]interface{}{
-						"data": m,
-					},
-				)
+				b.Logger().Info(fmt.Sprintf("creating secret: '%s' %v", fullSecretName, m))
+				_, err = b.vaultClient.Logical().Write(fullSecretName, m)
 
 				if err != nil {
 					return nil, err
