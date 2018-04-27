@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/helper/consts"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
@@ -80,8 +79,6 @@ type backend struct {
 	defaultAWSAccountID string
 
 	resolveArnToUniqueIDFunc func(context.Context, logical.Storage, string) (string, error)
-
-	vaultClient *api.Client
 }
 
 func Backend(conf *logical.BackendConfig) (*backend, error) {
@@ -93,16 +90,6 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 		IAMClientsMap:       make(map[string]map[string]*iam.IAM),
 		iamUserIdToArnCache: cache.New(7*24*time.Hour, 24*time.Hour),
 	}
-
-	config := api.DefaultConfig()
-	config.Address = "http://127.0.0.1:8200" // TODO: make this configurable
-
-	vaultClient, err := api.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
-
-	b.vaultClient = vaultClient
 
 	b.resolveArnToUniqueIDFunc = b.resolveArnToRealUniqueId
 

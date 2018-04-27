@@ -48,6 +48,11 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 		return nil, err
 	}
 
+	vaultClient, err := b.GetVaultClient(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+
 	b.Logger().Info(fmt.Sprintf("templates: %v", templates))
 	for _, templateName := range templates {
 		template, err := b.lockedTemplateEntry(ctx, req.Storage, roleName, templateName)
@@ -74,7 +79,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 
 			b.Logger().Info(fmt.Sprintf("creating policy: '%s' %s", fullPolicyName, buf.String()))
 			policies = append(policies, fullPolicyName)
-			_, err = b.vaultClient.Logical().Write(fullPolicyName,
+			_, err = vaultClient.Logical().Write(fullPolicyName,
 				map[string]interface{}{
 					"policy": buf.String(),
 				},
@@ -91,7 +96,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 
 			fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
 			b.Logger().Info(fmt.Sprintf("creating secret: '%s' %v", fullSecretName, m))
-			_, err = b.vaultClient.Logical().Write(fullSecretName, m)
+			_, err = vaultClient.Logical().Write(fullSecretName, m)
 
 			if err != nil {
 				return nil, err

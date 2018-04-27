@@ -3,6 +3,7 @@ package awsauth
 import (
 	"context"
 
+	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -91,8 +92,6 @@ func (b *backend) pathVaultClientDelete(ctx context.Context, req *logical.Reques
 		return nil, err
 	}
 
-	b.vaultClient.SetToken("")
-
 	return nil, nil
 }
 
@@ -110,7 +109,7 @@ func (b *backend) pathVaultClientCreateUpdate(ctx context.Context, req *logical.
 
 	token, ok := data.GetOk("token")
 	if ok {
-		b.vaultClient.SetToken(token.(string))
+		configEntry.Token = token.(string)
 	}
 
 	entry, err := logical.StorageEntryJSON("config/vault", configEntry)
@@ -123,6 +122,24 @@ func (b *backend) pathVaultClientCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	return nil, nil
+}
+
+func (b *backend) GetVaultClient(ctx context.Context, s logical.Storage) (*api.Client, error) {
+	config := api.DefaultConfig()
+	config.Address = "http://127.0.0.1:8200" // TODO: make this configurable
+
+	vaultClient, err := api.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	storedConf, err := b.nonLockedVaultConfigEntry(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	vaultClient.SetToken(storedConf.Token)
+
+	return vaultClient, nil
 }
 
 type vaultConfig struct {
