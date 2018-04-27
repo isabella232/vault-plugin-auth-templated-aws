@@ -18,6 +18,7 @@ type Values struct {
 	InternalIPv4 string
 	BasePath     string
 	OutputPath   string
+	TemplateName string
 }
 
 func renderTemplates(ctx context.Context, b *backend, req *logical.Request, instance *ec2.Instance, roleName string, role *awsRoleEntry) ([]string, error) {
@@ -60,6 +61,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 		}
 
 		values.OutputPath = template.Path
+		values.TemplateName = templateName
 
 		tmpl, err := texttemplate.New("tmpl").Parse(template.Template)
 		if err != nil {
@@ -74,7 +76,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 
 		switch template.Type {
 		case "policy":
-			fullPolicyName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
+			fullPolicyName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", values.TemplateName, values.InstanceHash))
 
 			b.Logger().Info(fmt.Sprintf("creating policy: '%s' %s", fullPolicyName, buf.String()))
 			policies = append(policies, fullPolicyName)
@@ -93,7 +95,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 				return nil, err
 			}
 
-			fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
+			fullSecretName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", values.TemplateName, values.InstanceHash))
 			b.Logger().Info(fmt.Sprintf("creating secret: '%s' %v", fullSecretName, m))
 			_, err = vaultClient.Logical().Write(fullSecretName, m)
 

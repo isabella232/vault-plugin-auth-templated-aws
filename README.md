@@ -70,6 +70,7 @@ Templates are processed using go's templating langauge, with the following varia
 - `{{ .InternalIPv4 }}`: the private IP address of the requesting instance
 - `{{ .BasePath }}`: the `base_path` set on the role used
 - `{{ .OutputPath }}`: the `path` set on the template
+- `{{ .TemplateName }}`: the name of the template
 
 These templates will be rendered to `{{.BasePath}}/{{.OutputPath}}/{{.TemplateName}}-{{.InstanceHash}}` in vault.
 
