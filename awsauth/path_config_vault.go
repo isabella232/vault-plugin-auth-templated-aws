@@ -2,6 +2,7 @@ package awsauth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/logical"
@@ -16,6 +17,11 @@ func pathConfigVault(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Default:     "",
 				Description: "Vault token to use for creating roles and policies",
+			},
+			"address": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Default:     "",
+				Description: "Address of vault API",
 			},
 		},
 
@@ -79,7 +85,8 @@ func (b *backend) pathVaultClientRead(ctx context.Context, req *logical.Request,
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"token": vaultConfig.Token,
+			"token":   vaultConfig.Token,
+			"address": vaultConfig.Address,
 		},
 	}, nil
 }
@@ -112,6 +119,11 @@ func (b *backend) pathVaultClientCreateUpdate(ctx context.Context, req *logical.
 		configEntry.Token = token.(string)
 	}
 
+	address, ok := data.GetOk("address")
+	if ok {
+		configEntry.Address = address.(string)
+	}
+
 	entry, err := logical.StorageEntryJSON("config/vault", configEntry)
 	if err != nil {
 		return nil, err
@@ -126,7 +138,6 @@ func (b *backend) pathVaultClientCreateUpdate(ctx context.Context, req *logical.
 
 func (b *backend) GetVaultClient(ctx context.Context, s logical.Storage) (*api.Client, error) {
 	config := api.DefaultConfig()
-	config.Address = "http://127.0.0.1:8200" // TODO: make this configurable
 
 	vaultClient, err := api.NewClient(config)
 	if err != nil {
@@ -137,13 +148,22 @@ func (b *backend) GetVaultClient(ctx context.Context, s logical.Storage) (*api.C
 	if err != nil {
 		return nil, err
 	}
+	if storedConf.Token == "" {
+		return nil, fmt.Errorf("error: missing vault token")
+	}
 	vaultClient.SetToken(storedConf.Token)
+
+	if storedConf.Address == "" {
+		return nil, fmt.Errorf("error: missing vault API address")
+	}
+	vaultClient.SetAddress(storedConf.Address)
 
 	return vaultClient, nil
 }
 
 type vaultConfig struct {
-	Token string `json:"token"`
+	Token   string `json:"token"`
+	Address string `json:"address"`
 }
 
 const pathVaultClientHelpSyn = `
