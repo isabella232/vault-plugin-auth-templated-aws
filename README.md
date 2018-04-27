@@ -51,12 +51,19 @@ Create role:
 
     vault write auth/tarmak/role/vault-test bound_iam_role_arn=arn:aws:iam::228615251467:role/tarmak-vault base_path="/"
 
-Create some templates:
+Create some templates (see the section below for more information):
 
     vault write auth/tarmak/template/vault-test/test-policy template='path "secret/*" { capabilities = ["create"] } path "secret/foo" { capabilities = ["read"] }' type=policy path="sys/policy"
     vault write auth/tarmak/template/vault-test/test-pki template='{"allowed_domains": ["{{ .FQDN }}"], "allow_subdomains": true}' type=generic path="pki/roles"
 
-These templates are processed using go's templating langauge, with the following variables supported:
+Get a token:
+
+    vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)" role=vault-test
+
+Templates
+---------
+
+Templates are processed using go's templating langauge, with the following variables supported:
 
 - `{{ .InstanceHash }}`: the ID of the requesting instance (e.g `i-0f7ebb331c89ed78c`)
 - `{{ .FQDN }}`: the private DNS name of the requesting instance (e.g. `ip-172-31-19-213.eu-west-1.compute.internal`)
@@ -64,6 +71,13 @@ These templates are processed using go's templating langauge, with the following
 - `{{ .BasePath }}`: the `base_path` set on the role used
 - `{{ .OutputPath }}`: the `path` set on the template
 
-Get a token:
+These templates will be rendered to `{{.BasePath}}/{{.OutputPath}}/{{.TemplateName}}-{{.InstanceHash}}` in vault.
 
-    vault write auth/tarmak/login pkcs7="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7)" role=vault-test
+### policy
+
+Templates with `type=policy` are parsed and processed in HCL. See [this page](https://www.vaultproject.io/docs/concepts/policies.html#policy-syntax) for details.
+
+### generic
+
+Templates with `type=generic` are specified in JSON format, and are processed as generic vault secrets.
+Although being intended to configure PKI roles, they could be used for other purposes.
