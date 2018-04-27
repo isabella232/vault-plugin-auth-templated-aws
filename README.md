@@ -39,9 +39,9 @@ Disable it with:
 Configuring
 -----------
 
-Set the vault token to use for writing new policies:
+Set the vault token and address to use for writing new policies:
 
-    vault write auth/tarmak/config/vault token=7459a4df-1e18-6b08-5c0a-f0106badc284
+    vault write auth/tarmak/config/vault token=7459a4df-1e18-6b08-5c0a-f0106badc284 address=http://127.0.0.1:8200
 
 Optionally set the aws credentials for talking to the ec2 api:
 
