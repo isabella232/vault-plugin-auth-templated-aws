@@ -55,6 +55,8 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 			return nil, err
 		}
 
+		values.OutputPath = template.Path
+
 		tmpl, err := texttemplate.New("tmpl").Parse(template.Template)
 		if err != nil {
 			return nil, err
@@ -68,9 +70,7 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 
 		switch template.Type {
 		case "policy":
-			values.OutputPath = ""
-
-			fullPolicyName := fmt.Sprintf("/sys/policy/%s-%s", templateName, values.InstanceHash)
+			fullPolicyName := filepath.Join(values.BasePath, values.OutputPath, fmt.Sprintf("%s-%s", template.TemplateName, values.InstanceHash))
 
 			b.Logger().Info(fmt.Sprintf("creating policy: '%s' %s", fullPolicyName, buf.String()))
 			policies = append(policies, fullPolicyName)
@@ -83,8 +83,6 @@ func renderTemplates(ctx context.Context, b *backend, req *logical.Request, inst
 				return nil, err
 			}
 		case "generic":
-			values.OutputPath = template.Path
-
 			m := map[string]interface{}{}
 			err := json.Unmarshal(buf.Bytes(), &m)
 			if err != nil {
