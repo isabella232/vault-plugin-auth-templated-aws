@@ -1,5 +1,8 @@
-tarmak-vault-auth-plugin
-========================
+vault-plugin-auth-templated-aws
+===============================
+
+vault-plugin-auth-templated-aws is a vault plugin to dynamically create roles and policies based on the identity of the EC2 instance requesting a vault token.
+It is implemented as a fork of vault's awsauth backend, with a templating system added.
 
 To build:
 
@@ -13,19 +16,19 @@ Add `plugin_directory = "/etc/vault/plugins"` to vault config.
 Copy binary into plugin directory:
 
     $ mkdir -p /etc/vault/plugins/
-    $ cp tarmak-vault-auth-plugin /etc/vault/plugins/tarmak-vault-auth-plugin
+    $ cp vault-plugin-auth-templated-aws /etc/vault/plugins/vault-plugin-auth-templated-aws
 
 Calculate hash of plugin:
 
-    $ export SHA256=$(shasum -a 256 "/etc/vault/plugins/tarmak-vault-auth-plugin" | cut -d' ' -f1)
+    $ export SHA256=$(shasum -a 256 "/etc/vault/plugins/vault-plugin-auth-templated-aws" | cut -d' ' -f1)
 
 Register it with vault:
 
-    $ vault write sys/plugins/catalog/tarmak-vault-auth-plugin sha_256="${SHA256}" command="tarmak-vault-auth-plugin"
+    $ vault write sys/plugins/catalog/vault-plugin-auth-templated-aws sha_256="${SHA256}" command="vault-plugin-auth-templated-aws"
 
 Enable it as an auth method:
 
-    $ vault auth enable -path="tarmak" -plugin-name="tarmak-vault-auth-plugin" plugin
+    $ vault auth enable -path="tarmak" -plugin-name="vault-plugin-auth-templated-aws" plugin
 
 Check it appears in auth list:
 

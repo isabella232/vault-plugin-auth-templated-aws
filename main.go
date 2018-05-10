@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/vault/helper/pluginutil"
 	"github.com/hashicorp/vault/logical/plugin"
 
-	"github.com/jetstack/tarmak-vault-auth-plugin/awsauth"
+	"github.com/jetstack/vault-plugin-auth-templated-aws/awsauth"
 )
 
 func main() {
